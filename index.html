@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивный симулятор рычага — Правило моментов</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+        input[type="range"] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800/80 border-b border-slate-700 backdrop-blur px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+        <div>
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <span>⚖️</span> Виртуальная лаборатория: Закон Рычага
+            </h1>
+            <p class="text-xs text-slate-400">Правило моментов сил: $M_1 = M_2 \implies m_1 \cdot d_1 = m_2 \cdot d_2$</p>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+            <button onclick="setPreset('mouse_elephant')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition">
+                🐘 Слон против Мыши 🐭
+            </button>
+            <button onclick="setPreset('equal')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 transition">
+                ⚖️ Равный вес
+            </button>
+            <button onclick="setPreset('archimedes')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition">
+                🏛️ Подвиг Архимеда
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 max-w-7xl w-full mx-auto">
+        
+        <!-- Canvas & Simulation Viewport -->
+        <section class="lg:col-span-8 flex flex-col gap-4">
+            <!-- Canvas Card -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex-1 flex flex-col relative overflow-hidden shadow-xl min-h-[380px]">
+                
+                <!-- Status Badge -->
+                <div class="absolute top-4 left-4 z-10 flex items-center gap-2">
+                    <span id="statusBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 backdrop-blur">
+                        Состояние: В равновесии
+                    </span>
+                </div>
+
+                <!-- Canvas -->
+                <div class="flex-1 w-full h-full relative flex items-center justify-center">
+                    <canvas id="simCanvas" class="w-full h-full block rounded-xl"></canvas>
+                </div>
+
+                <!-- Simulation Footer Info -->
+                <div class="grid grid-cols-2 gap-4 pt-3 border-t border-slate-700/60 text-center">
+                    <div class="bg-slate-900/50 p-2 rounded-lg border border-slate-700/40">
+                        <span class="text-xs text-blue-400 font-semibold block">Момент слева ($M_1$)</span>
+                        <span id="torqueLeft" class="text-lg font-bold text-white">0 кг·м</span>
+                    </div>
+                    <div class="bg-slate-900/50 p-2 rounded-lg border border-slate-700/40">
+                        <span class="text-xs text-purple-400 font-semibold block">Момент справа ($M_2$)</span>
+                        <span id="torqueRight" class="text-lg font-bold text-white">0 кг·м</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formula & Step-by-step Calculation Box -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg">
+                <h3 class="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-2">
+                    <span>🧮</span> Математическая модель равновесия
+                </h3>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-700/50 text-xs font-mono space-y-1">
+                    <div class="flex justify-between items-center text-slate-400">
+                        <span>Формула:</span>
+                        <span class="text-amber-400 font-bold">m₁ × d₁ = m₂ × d₂</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-300">
+                        <span>Подстановка:</span>
+                        <span id="formulaCalcText">0 кг × 0 м = 0 кг × 0 м</span>
+                    </div>
+                    <div class="flex justify-between items-center pt-1 border-t border-slate-800">
+                        <span>Сравнение моментов:</span>
+                        <span id="formulaResultText" class="font-bold text-emerald-400">0 = 0 (Равновесие)</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Control Panel -->
+        <section class="lg:col-span-4 flex flex-col gap-4">
+            
+            <!-- Left Object (Blue) Controls -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <h2 class="text-sm font-bold text-blue-400 flex items-center gap-2">
+                        <span>🔵</span> Левый груз ($m_1, d_1$)
+                    </h2>
+                    <select id="leftPresetSelect" onchange="applyObjectPreset('left', this.value)" class="bg-slate-900 border border-slate-700 text-xs text-slate-300 rounded px-2 py-1 outline-none">
+                        <option value="custom">Свой выбор</option>
+                        <option value="elephant" selected>🐘 Слон (4000 кг)</option>
+                        <option value="human">🧍 Человек (70 кг)</option>
+                        <option value="kettlebell">🏋️ Гиря (16 кг)</option>
+                        <option value="mouse">🐭 Мышь (0.05 кг)</option>
+                    </select>
+                </div>
+
+                <!-- Mass 1 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="m1Input" class="text-slate-400">Масса ($m_1$):</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="m1Input" step="0.01" min="0.01" max="10000" class="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-bold text-blue-400 text-xs">
+                            <span class="text-slate-500">кг</span>
+                        </div>
+                    </div>
+                    <input type="range" id="m1Range" min="0.01" max="5000" step="0.1" class="w-full">
+                </div>
+
+                <!-- Distance 1 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="d1Input" class="text-slate-400">Расстояние ($d_1$):</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="d1Input" step="0.1" min="0.1" max="50" class="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-bold text-blue-400 text-xs">
+                            <span class="text-slate-500">м</span>
+                        </div>
+                    </div>
+                    <input type="range" id="d1Range" min="0.1" max="20" step="0.1" class="w-full">
+                </div>
+            </div>
+
+            <!-- Right Object (Purple) Controls -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <h2 class="text-sm font-bold text-purple-400 flex items-center gap-2">
+                        <span>🟣</span> Правый груз ($m_2, d_2$)
+                    </h2>
+                    <select id="rightPresetSelect" onchange="applyObjectPreset('right', this.value)" class="bg-slate-900 border border-slate-700 text-xs text-slate-300 rounded px-2 py-1 outline-none">
+                        <option value="custom">Свой выбор</option>
+                        <option value="elephant">🐘 Слон (4000 кг)</option>
+                        <option value="human">🧍 Человек (70 кг)</option>
+                        <option value="kettlebell">🏋️ Гиря (16 кг)</option>
+                        <option value="mouse" selected>🐭 Мышь (0.05 кг)</option>
+                    </select>
+                </div>
+
+                <!-- Mass 2 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="m2Input" class="text-slate-400">Масса ($m_2$):</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="m2Input" step="0.01" min="0.01" max="10000" class="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-bold text-purple-400 text-xs">
+                            <span class="text-slate-500">кг</span>
+                        </div>
+                    </div>
+                    <input type="range" id="m2Range" min="0.01" max="5000" step="0.1" class="w-full">
+                </div>
+
+                <!-- Distance 2 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="d2Input" class="text-slate-400">Расстояние ($d_2$):</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="d2Input" step="0.1" min="0.1" max="200000" class="w-24 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-bold text-purple-400 text-xs">
+                            <span class="text-slate-500">м</span>
+                        </div>
+                    </div>
+                    <input type="range" id="d2Range" min="0.1" max="100" step="0.1" class="w-full">
+                </div>
+            </div>
+
+            <!-- Auto-Calculator / Solver Buttons -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg space-y-2">
+                <span class="text-xs font-semibold text-slate-400 block mb-2">⚡ Умный помощник (Авто-расчет):</span>
+                
+                <button onclick="solveForBalance()" class="w-full py-2 px-3 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center justify-center gap-2 shadow-md">
+                    🎯 Уравновесить ($d_2 = \frac{m_1 \cdot d_1}{m_2}$)
+                </button>
+                
+                <button onclick="solveForOverbalance()" class="w-full py-2 px-3 text-xs font-bold rounded-xl bg-slate-700 hover:bg-slate-600 text-emerald-400 border border-emerald-500/30 transition flex items-center justify-center gap-2">
+                    🚀 Перевесить правым грузом ($d_2 + 10\%$)
+                </button>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- JS Logic -->
+    <script>
+        // State variables
+        const state = {
+            m1: 4000,    // Elephant (kg)
+            d1: 1.0,     // 1 meter from pivot
+            m2: 0.05,    // Mouse (kg)
+            d2: 80.0,    // meters
+            beamAngle: 0,
+            targetAngle: 0,
+            maxAngle: 0.25 // radians (~14 degrees max visual tilt)
+        };
+
+        const PRESETS = {
+            elephant: { mass: 4000, icon: '🐘' },
+            human: { mass: 70, icon: '🧍' },
+            kettlebell: { mass: 16, icon: '🏋️' },
+            mouse: { mass: 0.05, icon: '🐭' }
+        };
+
+        // Canvas Setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // DOM elements
+        const m1Input = document.getElementById('m1Input');
+        const m1Range = document.getElementById('m1Range');
+        const d1Input = document.getElementById('d1Input');
+        const d1Range = document.getElementById('d1Range');
+
+        const m2Input = document.getElementById('m2Input');
+        const m2Range = document.getElementById('m2Range');
+        const d2Input = document.getElementById('d2Input');
+        const d2Range = document.getElementById('d2Range');
+
+        const leftPresetSelect = document.getElementById('leftPresetSelect');
+        const rightPresetSelect = document.getElementById('rightPresetSelect');
+
+        // Bind Controls
+        function setupListeners() {
+            // M1
+            m1Input.addEventListener('input', (e) => updateState('m1', parseFloat(e.target.value)));
+            m1Range.addEventListener('input', (e) => updateState('m1', parseFloat(e.target.value)));
+            // D1
+            d1Input.addEventListener('input', (e) => updateState('d1', parseFloat(e.target.value)));
+            d1Range.addEventListener('input', (e) => updateState('d1', parseFloat(e.target.value)));
+
+            // M2
+            m2Input.addEventListener('input', (e) => updateState('m2', parseFloat(e.target.value)));
+            m2Range.addEventListener('input', (e) => updateState('m2', parseFloat(e.target.value)));
+            // D2
+            d2Input.addEventListener('input', (e) => updateState('d2', parseFloat(e.target.value)));
+            d2Range.addEventListener('input', (e) => updateState('d2', parseFloat(e.target.value)));
+
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        function updateState(key, val) {
+            if (isNaN(val) || val <= 0) return;
+            state[key] = val;
+
+            // Sync inputs & ranges
+            m1Input.value = state.m1;
+            m1Range.value = Math.min(state.m1, 5000);
+
+            d1Input.value = state.d1;
+            d1Range.value = Math.min(state.d1, 20);
+
+            m2Input.value = state.m2;
+            m2Range.value = Math.min(state.m2, 5000);
+
+            d2Input.value = state.d2;
+            d2Range.value = Math.min(state.d2, 100);
+
+            recalculateTorque();
+        }
+
+        function recalculateTorque() {
+            const torque1 = state.m1 * state.d1;
+            const torque2 = state.m2 * state.d2;
+
+            // Update UI text
+            document.getElementById('torqueLeft').innerText = `${torque1.toLocaleString('ru-RU', {maximumFractionDigits: 2})} кг·м`;
+            document.getElementById('torqueRight').innerText = `${torque2.toLocaleString('ru-RU', {maximumFractionDigits: 2})} кг·м`;
+
+            // Calculate angle
+            const diff = torque2 - torque1;
+            const statusBadge = document.getElementById('statusBadge');
+            
+            // Torque ratio for tilt angle
+            const totalTorque = torque1 + torque2;
+            let ratio = 0;
+            if (totalTorque > 0) {
+                ratio = (torque2 - torque1) / Math.max(torque1, torque2);
+            }
+            state.targetAngle = ratio * state.maxAngle;
+
+            // Update badge & formula text
+            const diffAbs = Math.abs(torque1 - torque2);
+            const isBalanced = diffAbs < 0.01 || (diffAbs / Math.max(torque1, torque2)) < 0.005;
+
+            if (isBalanced) {
+                statusBadge.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 backdrop-blur";
+                statusBadge.innerText = "Состояние: В равновесии ⚖️";
+                document.getElementById('formulaResultText').className = "font-bold text-emerald-400";
+                document.getElementById('formulaResultText').innerText = `${torque1.toFixed(1)} = ${torque2.toFixed(1)} (Равновесие!)`;
+            } else if (torque1 > torque2) {
+                statusBadge.className = "px-3 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/40 backdrop-blur";
+                statusBadge.innerText = "Состояние: Перевес СЛЕВА ⬅️";
+                document.getElementById('formulaResultText').className = "font-bold text-blue-400";
+                document.getElementById('formulaResultText').innerText = `${torque1.toFixed(1)} > ${torque2.toFixed(1)} (Левая сторона тяжелее)`;
+            } else {
+                statusBadge.className = "px-3 py-1 rounded-full text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/40 backdrop-blur";
+                statusBadge.innerText = "Состояние: Перевес СПРАВА ➡️";
+                document.getElementById('formulaResultText').className = "font-bold text-purple-400";
+                document.getElementById('formulaResultText').innerText = `${torque1.toFixed(1)} < ${torque2.toFixed(1)} (Правая сторона тяжелее)`;
+            }
+
+            document.getElementById('formulaCalcText').innerText = 
+                `${state.m1} кг × ${state.d1} м = ${state.m2} кг × ${state.d2} м`;
+        }
+
+        // Preset actions
+        function setPreset(type) {
+            if (type === 'mouse_elephant') {
+                leftPresetSelect.value = 'elephant';
+                rightPresetSelect.value = 'mouse';
+                state.m1 = 4000;
+                state.d1 = 1.0;
+                state.m2 = 0.05;
+                state.d2 = 80000; // 80 km for exact balance
+                updateState('m1', state.m1);
+            } else if (type === 'equal') {
+                leftPresetSelect.value = 'human';
+                rightPresetSelect.value = 'human';
+                updateState('m1', 70);
+                updateState('d1', 3.0);
+                updateState('m2', 70);
+                updateState('d2', 3.0);
+            } else if (type === 'archimedes') {
+                leftPresetSelect.value = 'elephant';
+                rightPresetSelect.value = 'human';
+                updateState('m1', 4000);
+                updateState('d1', 0.5);
+                updateState('m2', 70);
+                updateState('d2', 28.57);
+            }
+        }
+
+        function applyObjectPreset(side, key) {
+            if (key === 'custom') return;
+            const preset = PRESETS[key];
+            if (side === 'left') {
+                updateState('m1', preset.mass);
+            } else {
+                updateState('m2', preset.mass);
+            }
+        }
+
+        function solveForBalance() {
+            // d2 = (m1 * d1) / m2
+            const requiredD2 = (state.m1 * state.d1) / state.m2;
+            updateState('d2', parseFloat(requiredD2.toFixed(2)));
+        }
+
+        function solveForOverbalance() {
+            // d2 = (m1 * d1 / m2) * 1.15
+            const requiredD2 = ((state.m1 * state.d1) / state.m2) * 1.15;
+            updateState('d2', parseFloat(requiredD2.toFixed(2)));
+        }
+
+        // Canvas Rendering
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        function getIconForMass(mass) {
+            if (mass >= 1000) return '🐘';
+            if (mass >= 50) return '🧍';
+            if (mass >= 1) return '🏋️';
+            return '🐭';
+        }
+
+        function render() {
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Smooth angle interpolation
+            state.beamAngle += (state.targetAngle - state.beamAngle) * 0.1;
+
+            const pivotX = width / 2;
+            const pivotY = height * 0.65;
+            const beamLength = Math.min(width * 0.8, 600);
+            const beamHalf = beamLength / 2;
+
+            // Draw Stand / Fulcrum (Pivot Triangle)
+            ctx.save();
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(pivotX, pivotY);
+            ctx.lineTo(pivotX - 35, pivotY + 80);
+            ctx.lineTo(pivotX + 35, pivotY + 80);
+            ctx.closePath();
+            ctx.fill();
+
+            // Stand Base
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(pivotX - 60, pivotY + 80, 120, 12);
+
+            // Fulcrum Pin Circle
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Beam Space Transformation
+            ctx.save();
+            ctx.translate(pivotX, pivotY);
+            ctx.rotate(state.beamAngle);
+
+            // Draw Main Beam
+            ctx.fillStyle = '#cbd5e1';
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(-beamHalf, -8, beamLength, 16, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            // Draw Rulers & Ticks
+            const ticksCount = 10;
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px Inter, sans-serif';
+            ctx.textAlign = 'center';
+
+            for (let i = 1; i <= ticksCount; i++) {
+                const xPos = (i / ticksCount) * (beamHalf - 20);
+                
+                // Left Ticks
+                ctx.fillRect(-xPos - 1, -8, 2, 6);
+                // Right Ticks
+                ctx.fillRect(xPos - 1, -8, 2, 6);
+            }
+
+            // Calculate Visual Positions for Masses on Beam
+            // Scale distances visually so they stay on beam preview
+            const maxVisualD = Math.max(state.d1, state.d2, 10);
+            
+            // Left Object Position (Normalized to beam length)
+            const leftX = - (Math.min(state.d1 / maxVisualD, 1.0) * (beamHalf - 30));
+            // Right Object Position
+            const rightX = (Math.min(state.d2 / maxVisualD, 1.0) * (beamHalf - 30));
+
+            // Draw Left Object (M1)
+            drawMassObject(leftX, -8, state.m1, state.d1, '#3b82f6', getIconForMass(state.m1), 'left');
+
+            // Draw Right Object (M2)
+            drawMassObject(rightX, -8, state.m2, state.d2, '#a855f7', getIconForMass(state.m2), 'right');
+
+            ctx.restore();
+
+            requestAnimationFrame(render);
+        }
+
+        function drawMassObject(x, y, mass, distance, color, emoji, side) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            // Hanging Rope / Connector
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -30);
+            ctx.stroke();
+
+            // Box / Object representation
+            const size = 44;
+            ctx.fillStyle = color;
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.roundRect(-size/2, -30 - size, size, size, 8);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Emoji icon
+            ctx.font = '22px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, 0, -30 - size/2);
+
+            // Labels under beam
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 11px Inter, sans-serif';
+            ctx.fillText(`${mass} кг`, 0, 20);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px Inter, sans-serif';
+            ctx.fillText(`${distance} м`, 0, 34);
+
+            ctx.restore();
+        }
+
+        // Initialize App
+        window.onload = () => {
+            setupListeners();
+            resizeCanvas();
+            updateState('m1', state.m1); // triggers initial sync and torque calc
+            requestAnimationFrame(render);
+        };
+    </script>
+</body>
+</html>
